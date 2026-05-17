@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Carritos Dibujados</title>
+
+<style>
+body{
+  background:#111;
+  color:white;
+  font-family:sans-serif;
+  text-align:center;
+}
+
+#preview{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+}
+
+.carBox{
+  border:2px solid white;
+  margin:10px;
+  padding:5px;
+  width:120px;
+}
+
+.thumb{
+  width:100%;
+}
+
+canvas{
+  background:#444;
+  border:3px solid white;
+  margin-top:20px;
+}
+
+#ganador img{
+  border:3px solid gold;
+}
+
+#footer{
+  margin-top:40px;
+  opacity:0.7;
+}
+</style>
+</head>
+
+<body>
+
+<h1>🚗 Torneo de Carritos</h1>
+
+<input type="file" id="upload" multiple>
+
+<div id="preview"></div>
+
+<h2 id="info"></h2>
+
+<button onclick="iniciarTorneo()">Iniciar Torneo</button>
+
+<canvas id="race" width="900" height="350"></canvas>
+
+<div id="ganador"></div>
+
+<div id="footer">
+  Este espacio fue creado por <b>gamespiration</b>.<br><br>
+  Para todas las personas que sueñan con su auto ideal,<br>
+  para quienes dibujan sin miedo,<br>
+  y para quienes entienden que en el juego,<br>
+  la creatividad… siempre encuentra su camino.
+</div>
+
+<script>
+let cars=[];
+let ctx = race.getContext("2d");
+
+let pistas=["recta","curvas","terracería"];
+let climas=["soleado","lluvia","tormenta"];
+
+let puntosPista={
+  recta:5,
+  curvas:3,
+  terracería:4
+};
+
+upload.onchange = e=>{
+  preview.innerHTML="";
+  cars=[];
+
+  Array.from(e.target.files).forEach((file,i)=>{
+    let img=new Image();
+    img.src=URL.createObjectURL(file);
+
+    img.onload=()=>{
+      let car={
+        id:i+1,
+        img:img,
+        x:0,
+        y:0,
+        wins:0,
+        stats:{
+          velocidad:Math.random()*10,
+          control:Math.random()*10,
+          caos:Math.random()
+        }
+      };
+
+      cars.push(car);
+      renderPreview();
+    }
+  });
+};
+
+function renderPreview(){
+  preview.innerHTML="";
+  cars.forEach(c=>{
+    let div=document.createElement("div");
+    div.className="carBox";
+
+    div.innerHTML=`
+      <img src="${c.img.src}" class="thumb">
+      <p>#${c.id}</p>
+      <p>⚡ ${c.stats.velocidad.toFixed(1)}</p>
+      <p>🎯 ${c.stats.control.toFixed(1)}</p>
+      <p>🌀 ${c.stats.caos.toFixed(2)}</p>
+      <p>🏁 ${c.wins}</p>
+    `;
+
+    preview.appendChild(div);
+  });
+}
+
+function iniciarTorneo(){
+  siguiente(0);
+}
+
+function siguiente(ronda){
+  if(ronda>=5){
+    mostrarRanking();
+    return;
+  }
+
+  let pista=pistas[Math.floor(Math.random()*pistas.length)];
+  let clima=climas[Math.floor(Math.random()*climas.length)];
+
+  info.innerText=`⚡ ${clima} | 🛣 ${pista}`;
+
+  carrera(()=>{
+    renderPreview();
+    siguiente(ronda+1);
+  }, pista, clima);
+}
+
+function carrera(callback,pista,clima){
+
+  cars.forEach((c,i)=>{
+    c.x=0;
+    c.y=i*40+20;
+  });
+
+  function frame(){
+
+    ctx.clearRect(0,0,900,350);
+    // 🎨 color según clima
+if(clima==="lluvia"){
+  ctx.fillStyle="#2c3e50";
+  ctx.globalAlpha = 0.9;
+  ctx.fillRect(0,0,900,350);
+  ctx.globalAlpha = 1;
+}else if(clima==="tormenta"){
+  ctx.fillStyle="#1a1a1a";
+  ctx.fillRect(0,0,900,350);
+}else{
+  ctx.fillStyle="#555";
+  ctx.fillRect(0,0,900,350);
+}
+
+// 🏁 línea de meta
+ctx.fillStyle = "yellow";
+ctx.fillRect(860, 0, 5, 350);
+
+    // 🛣 pista
+    for(let i=0;i<cars.length;i++){
+      if(clima==="tormenta"){
+  ctx.strokeStyle="#bbb"; // más contraste
+}else if(clima==="lluvia"){
+  ctx.strokeStyle="#6fa3c8"; // azulado
+}else{
+  ctx.strokeStyle="#888"; // normal
+}
+      ctx.setLineDash([10,10]);
+      ctx.beginPath();
+      ctx.moveTo(0,i*40+35);
+      ctx.lineTo(900,i*40+35);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    let ganador=null;
+
+    cars.forEach(car=>{
+
+      let maxWins=Math.max(...cars.map(c=>c.wins));
+
+      let penalizacion=1-(car.wins*0.05);
+      let bonus=1+((maxWins-car.wins)*0.08);
+
+      let ruido=0.6+Math.random()*0.8;
+
+      let evento=1;
+      if(Math.random()<0.08) evento=1.8;
+      if(Math.random()<0.05) evento=0.3;
+
+      let baseVel=Math.sqrt(car.stats.velocidad);
+      let baseControl=Math.sqrt(car.stats.control);
+
+      let move=(baseVel*0.6+baseControl*0.4)
+        *penalizacion
+        *bonus
+        *ruido
+        *evento;
+
+      car.x+=move;
+
+      // ✂️ RECORTE DEL COCHE (mitad inferior)
+      ctx.drawImage(
+        car.img,
+        0,
+        car.img.height/2,
+        car.img.width,
+        car.img.height/2,
+        car.x,
+        car.y,
+        50,
+        30
+      );
+
+      if(car.x>850 && !ganador){
+        ganador=car;
+      }
+    });
+
+    if(ganador){
+
+  // 🔊 sonido
+  let audio = new Audio("https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg");
+  audio.play();
+
+  ganador.wins+=puntosPista[pista];
+
+  cars.forEach(c=>{
+    c.wins+=1;
+  });
+
+  setTimeout(callback,1200);
+  return;
+}
+
+    requestAnimationFrame(frame);
+  }
+
+  frame();
+}
+
+function mostrarRanking(){
+
+  let orden=[...cars].sort((a,b)=>b.wins-a.wins);
+
+  ganador.innerHTML="<h2>🏆 RESULTADOS</h2>";
+
+  let top3 = [];
+  let limite = 0;
+
+  for(let i=0;i<orden.length;i++){
+
+    if(i < 3){
+      top3.push(orden[i]);
+      limite = orden[i].wins;
+    }else{
+      // 👉 incluye empates con el 3er lugar
+      if(orden[i].wins === limite){
+        top3.push(orden[i]);
+      }else{
+        break;
+      }
+    }
+  }
+
+  top3.forEach((c,i)=>{
+    let medal = ["🥇","🥈","🥉"][i] || "🥉";
+
+    ganador.innerHTML += `
+      <div>
+        ${medal} #${c.id} — ${c.wins} pts
+      </div>
+    `;
+  });
+
+  ganador.innerHTML += `
+    <br>
+    <img src="${top3[0].img.src}" width="200">
+    <br><br>
+    <button onclick="location.reload()">Reiniciar</button>
+  `;
+}
+</script>
+
+</body>
+</html>
